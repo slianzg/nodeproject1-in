@@ -5,117 +5,130 @@ const router = express.Router();
 
 //상품 등록 API
 router.post('/products', async (req, res) => {
-  const { title, content, author, password } = req.body;
+  try {
+    if (!req.body) {
+      return res
+        .status(400)
+        .json({ errorMessage: '데이터형식이 올바르지 않습니다.' });
+    }
 
-  if (!title || !content || !author || !password) {
+    const { title, content, author, password } = req.body;
+
+    const product = new Product({
+      title,
+      content,
+      author,
+      password,
+    });
+    await product.save();
+    return res.status(201).json({ message: '판매 상품을 등록하였습니다.' });
+  } catch (error) {
     return res
-      .status(400)
-      .json({ errorMessage: '데이터형식이 올바르지 않습니다.' });
+      .status(500)
+      .json({ errorMessage: '예기치 못한 에러가 발생했습니다.' });
   }
-
-  const status = 'FOR_SALE'; //FOR_SALE, SOLD_OUT 두가지 상태를 가지되, default는 FOR_SALE로>> 못함
-  const createdAt = new Date();
-
-  const product = new Product({
-    title,
-    content,
-    author,
-    password,
-    status,
-    createdAt,
-  });
-  await product.save();
-
-  return res.status(201).json({ message: '판매 상품을 등록하였습니다.' });
 });
 
 //상품 목록 조회 API
 router.get('/products', async (req, res) => {
-  const products = await Product.find().sort('-createdAt').exec(); //content랑 password를 res에서 빼고싶다
+  try {
+    const products = await Product.find()
+      .select('_id title author status createdAt') //-를 붙이면 이요소들을 배제한다는 뜻이 된다고 함
+      .sort({ createdAt: -1 })
+      .exec();
 
-  let mappedproducts = products.map((obj) => {
-    let newobj = {};
-    newobj['_id'] = obj._id;
-    newobj['title'] = obj.title;
-    newobj['author'] = obj.author;
-    newobj['status'] = obj.status;
-    newobj['createdAt'] = obj.createdAt;
-
-    return newobj;
-  });
-  return res.status(200).json({ data: mappedproducts });
+    return res.status(200).json({ data: products });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ errorMessage: '예기치 못한 에러가 발생했습니다.' });
+  }
 });
 
 //상품 상세 조회 API
 router.get('/products/:productId', async (req, res) => {
-  const { productId } = req.params;
-
-  const product = await Product.findById(productId).exec(); //password res에서 빼고 싶음
-  if (!product) {
-    return res.status(404).json({ message: '상품조회에 실패하였습니다.' });
+  try {
+    const product = await Product.findById(req.params.productId)
+      .select('_id title content author status createdAt')
+      .exec();
+    if (!product) {
+      return res.status(404).json({ message: '상품조회에 실패하였습니다.' });
+    }
+    return res.status(200).json({ data: product });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ errorMessage: '예기치 못한 에러가 발생했습니다.' });
   }
-  const { password, ...rest } = product._doc; //product가 res부분에 나오던 깔끔한 객체상태가 아님...
-  return res.status(200).json({ data: rest });
 });
 
 //상품 정보 수정 API
 router.put('/products/:productId', async (req, res) => {
-  const { productId } = req.params;
-  const { title, content, password, status } = req.body;
+  try {
+    if (!req.body || !req.params) {
+      return res
+        .status(400)
+        .json({ message: '데이터 형식이 올바르지 않습니다.' });
+    }
 
-  const product = await Product.findById(productId).exec();
+    const { title, content, password, status } = req.body;
 
-  if (!product) {
-    return res.status(404).json({ message: '상품조회에 실패하였습니다.' });
-  }
-  if (!password || !productId) {
-    return res
-      .status(400)
-      .json({ message: '데이터 형식이 올바르지 않습니다.' });
-  }
-  if (String(password) !== product.password) {
-    return res
-      .status(401)
-      .json({ message: '상품을 수정할 권한이 존재하지 않습니다.' });
-  }
+    const product = await Product.findById(req.params.productId).exec();
 
-  if (title) {
+    if (!product) {
+      return res.status(404).json({ message: '상품조회에 실패하였습니다.' });
+    }
+
+    if (String(password) !== product.password) {
+      return res
+        .status(401)
+        .json({ message: '상품을 수정할 권한이 존재하지 않습니다.' });
+    }
+
     product.title = title;
-  }
-  if (content) {
     product.content = content;
-  }
-  if (status) {
     product.status = status;
-  } //얘네 좀 묶어줄수 없나...?
 
-  await product.save();
-  return res.status(200).json({ message: '상품 정보를 수정하였습니다.' });
+    await product.save();
+    return res.status(200).json({ message: '상품 정보를 수정하였습니다.' });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ errorMessage: '예기치 못한 에러가 발생했습니다.' });
+  }
 });
 
 //상품 삭제 API
 router.delete('/products/:productId', async (req, res) => {
-  const { productId } = req.params;
-  const { password } = req.body;
+  try {
+    if (!req.body || !req.params) {
+      return res
+        .status(400)
+        .json({ message: '데이터 형식이 올바르지 않습니다.' });
+    }
 
-  const product = await Product.findById(productId).exec();
+    const { password } = req.body;
+    const productId = req.params.productId;
 
-  if (!product) {
-    return res.status(404).json({ message: '상품조회에 실패하였습니다.' });
-  }
-  if (!password || !productId) {
+    const product = await Product.findById(req.params.productId).exec();
+
+    if (!product) {
+      return res.status(404).json({ message: '상품조회에 실패하였습니다.' });
+    }
+
+    if (String(password) !== product.password) {
+      return res
+        .status(401)
+        .json({ message: '상품을 삭제할 권한이 존재하지 않습니다.' });
+    }
+
+    await Product.deleteOne({ _id: productId });
+    return res.status(200).json({ message: '상품을 삭제하였습니다.' });
+  } catch (error) {
     return res
-      .status(400)
-      .json({ message: '데이터 형식이 올바르지 않습니다.' });
+      .status(500)
+      .json({ errorMessage: '예기치 못한 에러가 발생했습니다.' });
   }
-  if (String(password) !== product.password) {
-    return res
-      .status(401)
-      .json({ message: '상품을 삭제할 권한이 존재하지 않습니다.' });
-  }
-
-  await Product.deleteOne({ _id: productId });
-  return res.status(200).json({ message: '상품을 삭제하였습니다.' });
 });
 
 export default router;

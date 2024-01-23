@@ -18,18 +18,13 @@ const ProductSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    createdAt: {
-      type: Date,
-      required: true,
-    },
     status: {
       type: String,
-      required: true,
+      enem: ['FOR_SALE', 'SOLD_OUT'],
+      default: 'FOR_SALE',
     },
   },
-  {
-    versionKey: false,
-  }
+  { timestamps: true } // createAt 대신
 );
 
 export default mongoose.model('Product', ProductSchema);
